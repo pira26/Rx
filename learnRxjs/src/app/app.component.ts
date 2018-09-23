@@ -1,6 +1,6 @@
 import { Component, ElementRef, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { from, Observable, of, Subject } from 'rxjs';
+import { BehaviorSubject, from, Observable, of, ReplaySubject, Subject } from 'rxjs';
 import 'rxjs-compat/add/operator/scan';
 import 'rxjs-compat/add/observable/fromEvent';
 import 'rxjs-compat/add/operator/map';
@@ -17,6 +17,8 @@ import 'rxjs-compat/add/operator/catch';
 import 'rxjs-compat/add/operator/onErrorResumeNext';
 import 'rxjs-compat/add/operator/retryWhen';
 import 'rxjs-compat/add/operator/delay';
+import 'rxjs-compat/add/operator/merge';
+import 'rxjs-compat/add/operator/publish';
 
 @Component({
   selector: 'app-root',
@@ -26,21 +28,27 @@ import 'rxjs-compat/add/operator/delay';
 
 export class AppComponent implements OnInit {
 
-  public title = 'learnRxjs';
+  public title = 'RxJS';
   public arr: number[] = [1, 2, 3, 4];
   public obs_interval: Observable<number> = Observable.interval(1000);
-  private subject: Subject<any> = new Subject();
+
+  // Subject is an observable and an observer
+  public subject: Subject<any> = new Subject();
 
   constructor(private elementRef: ElementRef, private http: HttpClient) {}
 
   ngOnInit() {
     this.obs_mergeMap();
-    this.obs_scan();
     this.obs_of();
     this.obs_from();
     this.obs_create();
     this.obs_do();
     this.obs_catch();
+    this.obs_subject();
+    this.obs_cold();
+    this.obs_hot();
+    this.obs_replaySubject();
+    this.obs_behaviorSubject();
   }
 
   obs_create() {
@@ -67,7 +75,7 @@ export class AppComponent implements OnInit {
       );
   }
 
-  obs_scan() {
+  /*obs_scan() {
     this.subject.scan((acc, curr) => {
       console.log('acc', acc);
       console.log('curr', curr);
@@ -78,7 +86,7 @@ export class AppComponent implements OnInit {
       (err) => console.error('err', err),
       () => console.log('completed')
     );
-  }
+  }*/
 
   obs_from() {
     from(this.arr).subscribe(
@@ -96,7 +104,7 @@ export class AppComponent implements OnInit {
     );
   }
 
-  obs_fromEvent() {
+  /*obs_fromEvent() {
     const myEvent = Observable.fromEvent(this.elementRef.nativeElement, 'keyup')
       .map((e) => e.target.value);
 
@@ -105,7 +113,7 @@ export class AppComponent implements OnInit {
       (err) => console.error('err', err),
       () => console.log('completed')
     );
-  }
+  }*/
 
   obs_fromPromise() {
 
@@ -207,6 +215,146 @@ export class AppComponent implements OnInit {
       () => console.log('completed')
     );
 
+  }
+
+  obs_subject() {
+    // its the mediator between our observable and our observer
+
+    const subject = new Subject();
+    const source = Observable.interval(1000);
+    // first example
+    source.subscribe(subject);
+    subject.subscribe(
+      (res) => console.log('first ex of res of obs_subject', res),
+      (error) => console.error('error', error),
+      () => console.log('completed')
+    );
+
+    // second example
+    const sourceA = Observable.interval(1000)
+      .map((v) => `A: ${v}`);
+    const sourceB = Observable.interval(2000)
+      .map((v) => `B: ${v}`);
+    sourceA.merge(sourceB).subscribe(subject);
+
+    subject.subscribe(
+      (res) => console.log('second ex of res of obs_subject', res),
+      (error) => console.error('error', error),
+      () => console.log('completed')
+    );
+
+  }
+
+  obs_cold() {
+    const cold = Observable.interval(1000);
+    let sub1, sub2;
+
+    sub1 = cold.subscribe(
+      (res) => console.log('sub1 res of obs_cold', res),
+      (error) => console.error('error', error),
+      () => console.log('completed')
+    );
+
+    setTimeout(() => {
+      sub2 = cold.subscribe(
+        (res) => console.log('sub2 res of obs_cold', res),
+        (error) => console.error('error', error),
+        () => console.log('completed')
+      );
+    }, 3000);
+
+    setTimeout(() => {
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+    }, 6000);
+
+  }
+
+  obs_hot() {
+    // publish converts cold observable to an hot observable
+    const hot = Observable.interval(1000).publish();
+    // connect starts the transmission
+    hot.connect();
+    let sub1, sub2;
+
+    sub1 = hot.subscribe(
+      (res) => console.log('sub1 res of obs_hot', res),
+      (error) => console.error('error', error),
+      () => console.log('completed')
+    );
+
+    setTimeout(() => {
+      sub2 = hot.subscribe(
+        (res) => console.log('sub2 res of obs_hot', res),
+        (error) => console.error('error', error),
+        () => console.log('completed')
+      );
+    }, 3000);
+
+    setTimeout(() => {
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+    }, 6000);
+
+  }
+
+  obs_replaySubject() {
+    const hot = Observable.interval(1000).publish();
+    hot.connect();
+    let sub1, sub2;
+    // replaySubject keeps in memory n last number of elements its data sequence
+    // here will keep the 3 last elements
+    const replaySubject = new ReplaySubject(3);
+    hot.subscribe(replaySubject);
+
+    sub1 = replaySubject.subscribe(
+      (res) => console.log('sub1 res of obs_replaySubject', res),
+      (error) => console.error('error', error),
+      () => console.log('completed')
+    );
+
+    setTimeout(() => {
+      sub2 = replaySubject.subscribe(
+        (res) => console.log('sub2 res of obs_replaySubject', res),
+        (error) => console.error('error', error),
+        () => console.log('completed')
+      );
+    }, 2500);
+
+    setTimeout(() => {
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+    }, 6000);
+
+  }
+
+  obs_behaviorSubject() {
+    const hot = Observable.interval(1000).publish();
+    hot.connect();
+    let sub1, sub2;
+    // BehaviorSubject keeps in memory only one element
+    // it emits a first default value
+    const behaviorSubject = new BehaviorSubject(-1);
+    hot.subscribe(behaviorSubject);
+
+    sub1 = behaviorSubject.subscribe(
+      (res) => console.log('sub1 res of obs_behaviorSubject', res),
+      (error) => console.error('error', error),
+      () => console.log('completed')
+    );
+
+    setTimeout(() => {
+      sub2 = behaviorSubject.subscribe(
+        (res) => console.log('sub2 res of obs_behaviorSubject', res),
+        (error) => console.error('error', error),
+        () => console.log('completed')
+      );
+    }, 2500);
+
+    setTimeout(() => {
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+    }, 6000);
   }
 
   private getRandom(min: number, max: number) {
